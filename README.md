@@ -22,16 +22,19 @@ MQTT Broker ──→ Python Ingestion ──→ PostgreSQL ──→ Grafana Da
 3. **Banco de Dados**: PostgreSQL com esquema otimizado
 4. **Visualização**: Grafana com dashboard OEE pré-configurado
 
-## 🚀 Como Executar
+## 📥 Instalação e Configuração
 
-### 1. Configuração Inicial
+### 1. Download do Repositório
 
 ```bash
-# Clone o repositório (se necessário)
-git clone https://github.com/sejodrope/desasfio-tecnico-backend
+# Opção 1: Via Git Clone
+git clone https://github.com/sejodrope/desafio-tecnico-backend.git
 cd desafio-tecnico-backend
 
-# O arquivo .env já está configurado com as credenciais fornecidas
+# Opção 2: Download ZIP
+# Acesse: https://github.com/sejodrope/desafio-tecnico-backend
+# Clique em "Code" > "Download ZIP"
+# Extraia o arquivo e navegue até a pasta do projeto
 ```
 
 ### 2. Iniciar os Serviços
@@ -44,12 +47,55 @@ docker-compose up --build
 docker-compose up --build -d
 ```
 
-### 3. Verificar os Serviços
+### 3. Aguardar Inicialização
+
+Aguarde alguns segundos para que todos os serviços sejam iniciados. Você pode verificar o status com:
+
+```bash
+docker-compose ps
+```
+
+### 4. Importar Dashboard no Grafana
+
+#### Passo 1: Acessar o Grafana
+- Abra o navegador e acesse: http://localhost:3000
+- **Usuário**: `admin`
+- **Senha**: `ecoadmin`
+
+#### Passo 2: Importar o Dashboard
+1. No menu lateral esquerdo, clique no ícone **"+"** (Create)
+2. Selecione **"Import"**
+3. Clique em **"Upload JSON file"**
+4. Selecione o arquivo `OEE Monitor - Máquina EX-001.json` da pasta do projeto
+5. Clique em **"Import"**
+
+#### Passo 3: Configurar Datasource (se necessário)
+Se solicitado, configure o datasource PostgreSQL:
+- **Name**: `PostgreSQL`
+- **Host**: `postgres:5432`
+- **Database**: `ex001`
+- **User**: `admin`
+- **Password**: `ecoadmin123`
+- **SSL Mode**: `disable`
+
+#### Passo 4: Verificar Dashboard
+Após a importação, o dashboard "OEE Monitor - Máquina EX-001" estará disponível e começará a exibir dados automaticamente.
+
+### 5. Verificar os Serviços
 
 - **PostgreSQL**: Porta 5432
 - **Grafana**: http://localhost:3000 (admin/ecoadmin)
 - **Logs de Ingestão**: `docker-compose logs ingestion`
 
+## 🔧 Alternativa - Importação via Upload JSON
+
+Se preferir, você também pode importar o dashboard copiando o conteúdo JSON:
+
+1. Abra o arquivo `OEE Monitor - Máquina EX-001.json` em um editor de texto
+2. Copie todo o conteúdo JSON
+3. No Grafana, vá em **Create > Import**
+4. Cole o JSON na área de texto **"Import via panel json"**
+5. Clique em **"Load"** e depois **"Import"**
 
 ## 📊 KPIs Implementados
 
@@ -257,9 +303,12 @@ docker-compose up --build
 2. Ajustar time range no Grafana
 3. Verificar conexão do datasource PostgreSQL
 
+### Problema: Erro na importação do dashboard
+1. Verificar se o arquivo JSON está na pasta correta
+2. Tentar a importação via cópia do conteúdo JSON
+3. Verificar se o datasource PostgreSQL está configurado corretamente
 
 ---
 
 **Desenvolvido por**: José Pedro  
-**Data**: 27 de junho de 2025  
 **Desafio**: ECO+ Automação - Vaga Backend

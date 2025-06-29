@@ -750,7 +750,7 @@
             }
           },
           "mappings": [],
-          "max": 100,
+          "max": 150,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
@@ -842,7 +842,7 @@
     ]
   },
   "timezone": "America/Sao_Paulo",
-  "title": "🏭 OEE Monitor - Máquina EX-001",
+  "title": "OEE Monitor - Máquina EX-001",
   "uid": "173943fc-4eb8-483c-9d7c-d6b108a64093",
-  "version": 37
+  "version": 41
 }
