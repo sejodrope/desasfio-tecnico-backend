@@ -261,5 +261,4 @@ docker-compose up --build
 ---
 
 **Desenvolvido por**: José Pedro  
-**Data**: 27 de junho de 2025  
 **Desafio**: ECO+ Automação - Vaga Backend
