@@ -53,7 +53,7 @@ docker-compose ps
 
 ### 📁 Novos Arquivos
 - `.env` - Credenciais MQTT configuradas
-- `SOLUCAO.md` - Documentação técnica completa
+- `README.md` - Documentação técnica completa
 - `test_mqtt.py` - Script para teste de dados
 - `start.ps1` / `start.sh` - Scripts de inicialização
 - `grafana/provisioning/dashboards/dashboard_oee.json` - Dashboard completo

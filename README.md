@@ -1,137 +1,219 @@
-# Desafio Pipeline de Dados EX-001
+# Solução do Desafio Técnico - Pipeline de Dados EX-001
 
-## Visão Geral
-Este desafio prático visa validar competências de:
+## 🎯 Objetivo
 
-1. **Modelagem de Banco de Dados** (PostgreSQL)
-2. **Ingestão de Dados via MQTT** com Python (broker MQTT configurado para MQTT)
-3. **Visualização de KPIs** em Grafana (ou Power BI)
+Desenvolver um pipeline completo para monitoramento de OEE (Overall Equipment Effectiveness) da máquina EX-001, incluindo:
 
-Os dados de operação da máquina **EX-001** são transmitidos automaticamente a cada 5 minutos por um ambiente MQTT em nuvem. Seu trabalho é **processar** essas informações e **criar** o dashboard de OEE (e demais KPIs).
+- ✅ Ingestão de dados via MQTT
+- ✅ Armazenamento em PostgreSQL  
+- ✅ Visualização de KPIs no Grafana
 
-Você receberá credenciais (host, porta, usuário e senha) para esse ambiente MQTT, que publica mensagens no tópico `ECOPLUS/EX-001/dados`. Seu objetivo é:
-
-- Consumir essas mensagens JSON
-- Persisti-las em PostgreSQL
-- Criar dashboards com os KPIs abaixo:
-  - **Disponibilidade**
-  - **Performance** (meta: 100 peças/hora)
-  - **Qualidade**
-  - **OEE**
-  - **Total de peças produzidas**
-  - **Total de peças defeituosas**
-
-Para testar e depurar a conexão MQTT, recomendamos instalar o [**MQTT Explorer**](https://mqtt-explorer.com) ou qualquer outro cliente de sua preferência.
-
-## Estrutura do Repositório
+## 🏗️ Arquitetura da Solução
 
 ```
-├── README.md
-├── .env.example
-├── docker-compose.yml
-├── ingestion/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── main.py
-├── db/
-│   └── init.sql
-├── grafana/
-│   ├── provisioning/
-│   │   ├── datasources/
-│   │   │   └── datasources.yml
-│   │   └── dashboards/
-│   │       └── dashboard_oee.json
-└── docs/
-├── architecture_diagram.png
-└── architecture_diagram.md
+MQTT Broker ──→ Python Ingestion ──→ PostgreSQL ──→ Grafana Dashboard
+(EcoPlus)       (Container)           (Container)     (Container)
 ```
 
-## Requisitos
-- Docker e Docker Compose instalados
-- Acesso ao broker MQTT (credenciais serão fornecidas)
-- Git
-- MQTT Client (opcional, para debug)
+### Componentes:
 
-## Configuração
-1. Copie o arquivo de exemplo de variáveis de ambiente:
-    ```bash
-    cp .env.example .env
-    ```
+1. **MQTT Broker Externo**: `mqtt.ecoplus-apps.com`
+2. **Serviço de Ingestão**: Container Python com paho-mqtt
+3. **Banco de Dados**: PostgreSQL com esquema otimizado
+4. **Visualização**: Grafana com dashboard OEE pré-configurado
 
-2. Preencha `MQTT_HOST`, `MQTT_PORT`, `MQTT_USER` e `MQTT_PASS` com as credenciais do broker MQTT:
-    ```
-    - MQTT_HOST = mqtt.ecoplus-apps.com
-    - MQTT_PORT = 1883
-    - MQTT_USER = ecoplus-teste:temp_user
-    - MQTT_PASS = u9JJ8d8DOp
-    ```
+## 🚀 Como Executar
 
-## ⚡ Início Rápido
-
-### Opção 1: Script Automatizado (Recomendado)
-
-```powershell
-# Windows PowerShell
-.\start.ps1
-```
+### 1. Configuração Inicial
 
 ```bash
-# Linux/macOS
-chmod +x start.sh
-./start.sh
+# Clone o repositório (se necessário)
+git clone https://github.com/sejodrope/desasfio-tecnico-backend
+cd desafio-tecnico-backend
+
+# O arquivo .env já está configurado com as credenciais fornecidas
 ```
 
-### Opção 2: Manual
+### 2. Iniciar os Serviços
 
 ```bash
-# 1. Configurar ambiente
-cp .env.example .env
-# (O arquivo .env já está preenchido com as credenciais)
+# Construir e iniciar todos os containers
+docker-compose up --build
 
-# 2. Iniciar serviços
+# Para executar em background
 docker-compose up --build -d
+```
 
-# 3. Verificar logs
+### 3. Verificar os Serviços
+
+- **PostgreSQL**: Porta 5432
+- **Grafana**: http://localhost:3000 (admin/ecoadmin)
+- **Logs de Ingestão**: `docker-compose logs ingestion`
+
+
+## 📊 KPIs Implementados
+
+O dashboard do Grafana inclui todos os KPIs solicitados:
+
+### 1. **Disponibilidade** 🟢
+- **Fórmula**: `(Tempo sem paradas / Tempo total) × 100`
+- **Critério**: Máquina ligada, sem manutenções
+- **Meta**: > 85% (verde), 70-85% (amarelo), < 70% (vermelho)
+
+### 2. **Performance** 🔵  
+- **Fórmula**: `(Peças boas/hora / Meta produção) × 100`
+- **Meta de Produção**: 100 peças/hora
+- **Critério**: Apenas durante operação ativa
+
+### 3. **Qualidade** 🟡
+- **Fórmula**: `(Peças boas / Peças produzidas) × 100`
+- **Meta**: > 95% (verde), 90-95% (amarelo), < 90% (vermelho)
+
+### 4. **OEE** 🏆
+- **Fórmula**: `Disponibilidade × Performance × Qualidade`
+- **Benchmark**: > 85% (classe mundial), 60-85% (bom), < 60% (precisa melhorar)
+
+### 5. **Totalizadores** 📈
+- **Total de Peças Produzidas**: Soma no período selecionado
+- **Total de Peças Defeituosas**: Soma no período selecionado
+
+### 6. **Gráficos Temporais** 📉
+- **Status da Máquina**: Timeline com estados (operação, manutenção, parada, desligada)
+- **Produção por Hora**: Barras com produção total, defeituosas e boas
+- **Eficiência por Período**: Qualidade % e performance por hora
+
+## 🔧 Detalhes Técnicos
+
+### Estrutura do Banco de Dados
+
+```sql
+CREATE TABLE dados_maquina (
+  id SERIAL PRIMARY KEY,
+  id_maquina INTEGER NOT NULL,
+  datahora TIMESTAMPTZ NOT NULL,
+  ligada BOOLEAN,
+  operacao BOOLEAN,
+  manutencao_corretiva BOOLEAN,
+  manutencao_preventiva BOOLEAN,
+  pecas_produzidas INTEGER,
+  pecas_defeituosas INTEGER
+);
+
+-- Índice para otimizar consultas temporais
+CREATE INDEX idx_dados_maquina_datahora ON dados_maquina(datahora);
+```
+
+### Formato das Mensagens MQTT
+
+```json
+{
+  "id_maquina": 1,
+  "datahora": "2025-01-01T12:00:00-03:00",
+  "ligada": true,
+  "operacao": true,
+  "manutencao_corretiva": false,
+  "manutencao_preventiva": false,
+  "pecas_produzidas": 9,
+  "pecas_defeituosas": 1
+}
+```
+
+### Melhorias Implementadas
+
+1. **Logs Detalhados**: Emojis e informações claras sobre o processo
+2. **Validação de Dados**: Verificação de campos obrigatórios
+3. **Tratamento de Erros**: Retry automático para conexão DB
+4. **Tolerância a Falhas**: Reconexão automática MQTT
+5. **Timezone**: Suporte a fuso horário brasileiro
+6. **Dashboard Responsivo**: Interface otimizada para diferentes telas
+
+## 📈 Queries SQL dos KPIs
+
+### Disponibilidade
+```sql
+WITH tempo_total AS (
+  SELECT EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600 AS horas_periodo
+  FROM dados_maquina WHERE $__timeFilter(datahora)
+),
+tempo_disponivel AS (
+  SELECT EXTRACT(EPOCH FROM SUM(
+    CASE 
+      WHEN ligada = true AND manutencao_corretiva = false AND manutencao_preventiva = false 
+      THEN INTERVAL '5 minutes'
+      ELSE INTERVAL '0'
+    END
+  )) / 3600 AS horas_disponivel
+  FROM dados_maquina WHERE $__timeFilter(datahora)
+)
+SELECT 
+  CASE 
+    WHEN tt.horas_periodo > 0 
+    THEN ROUND((td.horas_disponivel / tt.horas_periodo * 100)::numeric, 2)
+    ELSE 0
+  END AS disponibilidade
+FROM tempo_total tt, tempo_disponivel td;
+```
+
+### Performance
+```sql
+WITH producao_real AS (
+  SELECT 
+    SUM(pecas_produzidas - pecas_defeituosas) AS pecas_boas,
+    EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600 AS horas_periodo
+  FROM dados_maquina 
+  WHERE $__timeFilter(datahora) AND operacao = true
+)
+SELECT 
+  CASE 
+    WHEN horas_periodo > 0 
+    THEN ROUND(((pecas_boas / horas_periodo) / 100 * 100)::numeric, 2)
+    ELSE 0
+  END AS performance
+FROM producao_real;
+```
+
+### Qualidade
+```sql
+WITH qualidade_calc AS (
+  SELECT 
+    SUM(pecas_produzidas) AS total_produzidas,
+    SUM(pecas_produzidas - pecas_defeituosas) AS pecas_boas
+  FROM dados_maquina 
+  WHERE $__timeFilter(datahora)
+)
+SELECT 
+  CASE 
+    WHEN total_produzidas > 0 
+    THEN ROUND((pecas_boas::float / total_produzidas * 100)::numeric, 2)
+    ELSE 0
+  END AS qualidade
+FROM qualidade_calc;
+```
+
+## 🎨 Dashboard Features
+
+- **Refresh Automático**: 30 segundos
+- **Time Picker**: Seleção flexível de período
+- **Cores Semafóricas**: Verde/Amarelo/Vermelho baseado em thresholds
+- **Tooltips Informativos**: Detalhes sobre cada métrica
+- **Layouts Responsivos**: Adaptação a diferentes resoluções
+
+## 🔍 Monitoramento e Debug
+
+### Verificar Logs dos Containers
+
+```bash
+# Logs da ingestão MQTT
 docker-compose logs -f ingestion
 
-# 4. Acessar dashboard
-# http://localhost:3000 (admin/admin)
+# Logs do PostgreSQL
+docker-compose logs -f postgres
+
+# Logs do Grafana
+docker-compose logs -f grafana
 ```
 
-## Preparação do ambiente
-
-```bash
-# Na raiz do projeto
-docker-compose up --build
-```
-
-Isso irá:
-
-* Iniciar o serviço PostgreSQL e executar o script de criação de tabelas (`db/init.sql`).
-* Subir o serviço Python de ingestão, que se conecta ao broker MQTT via MQTT e persiste os dados no banco.
-* Executar o Grafana com provisionamento automático de data source.
-
-## Execução
-
-1. Execute o script de inicialização ou siga os passos manuais acima;
-2. Aguarde todos os containers subirem (cerca de 30 segundos);
-3. Acesse o Grafana em `http://localhost:3000` (usuário/senha: `admin`/`admin`);
-4. O dashboard **"Dashboard OEE - Máquina EX-001"** será carregado automaticamente;
-5. Os dados reais do MQTT começarão a ser coletados automaticamente;
-
-### 🧪 Teste com Dados de Exemplo (Opcional)
-
-Para gerar dados de teste e validar o funcionamento:
-
-```bash
-# Instalar dependências (se necessário)
-pip install paho-mqtt python-dotenv
-
-# Executar script de teste
-python test_mqtt.py
-```
-
-### 📊 Verificar Dados no Banco
+### Verificar Dados no Banco
 
 ```bash
 # Conectar ao PostgreSQL
@@ -139,46 +221,45 @@ docker-compose exec postgres psql -U admin -d ex001
 
 # Consultar dados recentes
 SELECT * FROM dados_maquina ORDER BY datahora DESC LIMIT 10;
+
+# Verificar contagem de registros
+SELECT COUNT(*) FROM dados_maquina;
 ```
 
-### 🔍 Monitoramento
+### Testar Conexão MQTT
 
+Use o **MQTT Explorer** ou cliente similar:
+- **Host**: mqtt.ecoplus-apps.com
+- **Port**: 1883
+- **Username**: ecoplus-teste:temp_user
+- **Password**: u9JJ8d8DOp
+- **Topic**: ECOPLUS/EX-001/dados
+
+## 🚨 Troubleshooting
+
+### Problema: Containers não iniciam
 ```bash
-# Logs em tempo real da ingestão
-docker-compose logs -f ingestion
+# Verificar logs
+docker-compose logs
 
-# Status dos containers
-docker-compose ps
-
-# Parar todos os serviços
-docker-compose down
+# Recriar containers
+docker-compose down -v
+docker-compose up --build
 ```
 
-6. Aplique seleção de tempo `time picker` nas queries SQL configuradas nos painéis, como no exemplo abaixo:
-```sql
-SELECT *
-FROM dados_maquina
-WHERE $__timeFilter(datahora)
-```
-7. Documente os passos da criação e execução da solução em um arquivo Markdown de forma clara e objetiva;
-8. Documente também o resultado final do dashboard (prints e arquivo `.json` de import são bem vindos) e os registros de dados, da forma que preferir;
+### Problema: Não recebe dados MQTT
+1. Verificar credenciais no `.env`
+2. Testar conectividade com MQTT Explorer
+3. Verificar logs do container ingestion
 
-## KPIs considerados
+### Problema: Dashboard vazio
+1. Verificar se há dados no banco (executar a query)
+2. Ajustar time range no Grafana
+3. Verificar conexão do datasource PostgreSQL
 
-### A partir dos dados aferidos e registrados, crie um dashboard com os seguintes indicadores:
-
-* **Disponibilidade**: % de tempo em que a máquina esteve pronta para operar (sem paradas, desligamentos e manutenções).
-* **Performance**: (peças boas produzidas/hora) ÷ (meta de produção) × 100
-* **Qualidade**: (peças boas ÷ peças produzidas) × 100
-* **OEE**: Disponibilidade × Performance × Qualidade
-* **Total de peças produzidas**: soma de `pecas_produzidas` no intervalo.
-* **Total de peças defeituosas**: soma de `pecas_defeituosas` no intervalo.
-> Obs: Meta de produção = 100 peças/hora.
-
-#### Mais informações sobre indicadores em [OEE Factors](https://www.oee.com/oee-factors).
 
 ---
- 
-### Demonstre sua capacidade de resolução de problemas e análise de dados com a criação desse dashboard e nos envie os resultados! 
-### Encaminhe seu projeto para o seu contato da ECO+, com cópia para rh@ecoautomacao.com.br. 
-## Boa sorte!
+
+**Desenvolvido por**: José Pedro  
+**Data**: 27 de junho de 2025  
+**Desafio**: ECO+ Automação - Vaga Backend
