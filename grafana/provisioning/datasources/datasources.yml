@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  - name: PostgreSQL
+    type: postgres
+    uid: ecoplus-postgres-db
+    access: proxy
+    url: ${POSTGRES_HOST}:${POSTGRES_PORT}
+    database: ${POSTGRES_DB}
+    user: ${POSTGRES_USER}
+    jsonData:
+      sslmode: 'disable'
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    isDefault: true
+    editable: true

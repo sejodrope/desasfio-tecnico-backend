@@ -1,0 +1,236 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "oee-dashboard",
+    "title": "Dashboard OEE - Máquina EX-001",
+    "tags": ["oee", "ex-001", "ecoplus"],
+    "timezone": "America/Sao_Paulo",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Disponibilidade (%)",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "WITH tempo_total AS (\n  SELECT \n    EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600 AS horas_periodo\n  FROM dados_maquina \n  WHERE $__timeFilter(datahora)\n),\ntempo_disponivel AS (\n  SELECT \n    EXTRACT(EPOCH FROM SUM(\n      CASE \n        WHEN ligada = true AND manutencao_corretiva = false AND manutencao_preventiva = false \n        THEN INTERVAL '5 minutes'\n        ELSE INTERVAL '0'\n      END\n    )) / 3600 AS horas_disponivel\n  FROM dados_maquina \n  WHERE $__timeFilter(datahora)\n)\nSELECT \n  CASE \n    WHEN tt.horas_periodo > 0 \n    THEN ROUND((td.horas_disponivel / tt.horas_periodo * 100)::numeric, 2)\n    ELSE 0\n  END AS disponibilidade\nFROM tempo_total tt, tempo_disponivel td;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "green", "value": 85}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Performance (%)",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "WITH producao_real AS (\n  SELECT \n    SUM(pecas_produzidas - pecas_defeituosas) AS pecas_boas,\n    EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600 AS horas_periodo\n  FROM dados_maquina \n  WHERE $__timeFilter(datahora) AND operacao = true\n)\nSELECT \n  CASE \n    WHEN horas_periodo > 0 \n    THEN ROUND(((pecas_boas / horas_periodo) / 100 * 100)::numeric, 2)\n    ELSE 0\n  END AS performance\nFROM producao_real;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "green", "value": 85}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Qualidade (%)",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "WITH qualidade_calc AS (\n  SELECT \n    SUM(pecas_produzidas) AS total_produzidas,\n    SUM(pecas_produzidas - pecas_defeituosas) AS pecas_boas\n  FROM dados_maquina \n  WHERE $__timeFilter(datahora)\n)\nSELECT \n  CASE \n    WHEN total_produzidas > 0 \n    THEN ROUND((pecas_boas::float / total_produzidas * 100)::numeric, 2)\n    ELSE 0\n  END AS qualidade\nFROM qualidade_calc;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 90},
+                {"color": "green", "value": 95}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "OEE (%)",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "WITH metricas AS (\n  SELECT \n    -- Disponibilidade\n    CASE \n      WHEN EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600 > 0 \n      THEN (EXTRACT(EPOCH FROM SUM(\n        CASE \n          WHEN ligada = true AND manutencao_corretiva = false AND manutencao_preventiva = false \n          THEN INTERVAL '5 minutes'\n          ELSE INTERVAL '0'\n        END\n      )) / 3600) / (EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600)\n      ELSE 0\n    END AS disponibilidade,\n    \n    -- Performance\n    CASE \n      WHEN EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600 > 0 \n      THEN ((SUM(pecas_produzidas - pecas_defeituosas) / (EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600)) / 100)\n      ELSE 0\n    END AS performance,\n    \n    -- Qualidade\n    CASE \n      WHEN SUM(pecas_produzidas) > 0 \n      THEN SUM(pecas_produzidas - pecas_defeituosas)::float / SUM(pecas_produzidas)\n      ELSE 0\n    END AS qualidade\n    \n  FROM dados_maquina \n  WHERE $__timeFilter(datahora)\n)\nSELECT \n  ROUND((disponibilidade * performance * qualidade * 100)::numeric, 2) AS oee\nFROM metricas;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 60},
+                {"color": "green", "value": 85}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Total de Peças Produzidas",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "SELECT SUM(pecas_produzidas) AS total_produzidas\nFROM dados_maquina \nWHERE $__timeFilter(datahora);",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Total de Peças Defeituosas",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 8},
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "SELECT SUM(pecas_defeituosas) AS total_defeituosas\nFROM dados_maquina \nWHERE $__timeFilter(datahora);",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "fixed", "fixedColor": "red"}
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Status da Máquina ao Longo do Tempo",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT \n  datahora AS time,\n  CASE \n    WHEN ligada = false THEN 0\n    WHEN manutencao_corretiva = true THEN 1\n    WHEN manutencao_preventiva = true THEN 2\n    WHEN operacao = true THEN 3\n    ELSE 4\n  END AS status,\n  CASE \n    WHEN ligada = false THEN 'Desligada'\n    WHEN manutencao_corretiva = true THEN 'Manutenção Corretiva'\n    WHEN manutencao_preventiva = true THEN 'Manutenção Preventiva'\n    WHEN operacao = true THEN 'Em Operação'\n    ELSE 'Parada'\n  END AS status_label\nFROM dados_maquina \nWHERE $__timeFilter(datahora)\nORDER BY datahora;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "stepAfter",
+              "lineWidth": 2,
+              "fillOpacity": 20
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Produção por Hora",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+        "targets": [
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT \n  date_trunc('hour', datahora) AS time,\n  SUM(pecas_produzidas) AS producao_total,\n  SUM(pecas_defeituosas) AS defeituosas,\n  SUM(pecas_produzidas - pecas_defeituosas) AS pecas_boas\nFROM dados_maquina \nWHERE $__timeFilter(datahora)\nGROUP BY date_trunc('hour', datahora)\nORDER BY time;",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "bars",
+              "barAlignment": 0
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Eficiência por Período",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+        "targets": [
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT \n  date_trunc('hour', datahora) AS time,\n  CASE \n    WHEN SUM(pecas_produzidas) > 0 \n    THEN ROUND((SUM(pecas_produzidas - pecas_defeituosas)::float / SUM(pecas_produzidas) * 100)::numeric, 2)\n    ELSE 0\n  END AS qualidade_pct,\n  ROUND((SUM(pecas_produzidas - pecas_defeituosas) / COUNT(*) * 12)::numeric, 2) AS performance_hora\nFROM dados_maquina \nWHERE $__timeFilter(datahora)\nGROUP BY date_trunc('hour', datahora)\nORDER BY time;",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": []
+    },
+    "refresh": "30s",
+    "schemaVersion": 30,
+    "version": 1,
+    "links": [],
+    "editable": true
+  },
+  "overwrite": true
+}

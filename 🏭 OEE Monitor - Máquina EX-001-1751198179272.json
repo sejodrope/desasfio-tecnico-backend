@@ -1,0 +1,848 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Dashboard em tempo real para monitoramento de OEE e KPIs da máquina EX-001",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": 3,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ecoplus-postgres-db"
+      },
+      "description": "Percentual de tempo que a máquina esteve disponível para operação (sem manutenções)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "#EAB839",
+                "value": 70
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "inverted",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ecoplus-postgres-db"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH tempo_total AS (\r\n  SELECT \r\n    GREATEST(\r\n      EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600,\r\n      0.1  -- Mínimo de 6 minutos para evitar divisão por zero\r\n    ) AS horas_periodo\r\n  FROM dados_maquina \r\n  WHERE $__timeFilter(datahora)\r\n),\r\ntempo_disponivel AS (\r\n  SELECT \r\n    EXTRACT(EPOCH FROM SUM(\r\n      CASE \r\n        WHEN ligada = true \r\n         AND manutencao_corretiva = false \r\n         AND manutencao_preventiva = false \r\n        THEN INTERVAL '5 minutes'\r\n        ELSE INTERVAL '0'\r\n      END\r\n    )) / 3600 AS horas_disponivel\r\n  FROM dados_maquina \r\n  WHERE $__timeFilter(datahora)\r\n)\r\nSELECT \r\n  CASE \r\n    WHEN tt.horas_periodo > 0 \r\n    THEN ROUND((td.horas_disponivel / tt.horas_periodo * 100)::numeric, 1)\r\n    ELSE 0\r\n  END AS \"Disponibilidade\"\r\nFROM tempo_total tt, tempo_disponivel td;",
+          "refId": "A",
+          "sql": {
+            "columns": [],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
+          "table": "dados_maquina"
+        }
+      ],
+      "title": "🟢 DISPONIBILIDADE",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ecoplus-postgres-db"
+      },
+      "description": "Percentual de peças boas em relação ao total produzido",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 150,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "#EAB839",
+                "value": 70
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH producao_periodo AS (\r\n  SELECT \r\n    SUM(CASE WHEN operacao = true THEN (pecas_produzidas - pecas_defeituosas) ELSE 0 END) AS pecas_boas,\r\n    -- Contabiliza apenas tempo em operação (5 minutos por registro)\r\n    COUNT(*) FILTER (WHERE operacao = true) * 5.0 / 60 AS horas_operacao_real,\r\n    100 AS meta_pecas_hora  -- Meta: 100 peças/hora\r\n  FROM dados_maquina \r\n  WHERE $__timeFilter(datahora)\r\n)\r\nSELECT \r\n  CASE \r\n    WHEN horas_operacao_real > 0 \r\n    THEN ROUND(\r\n      ((pecas_boas / horas_operacao_real) / meta_pecas_hora * 100)::numeric, \r\n      1\r\n    )\r\n    ELSE 0\r\n  END AS \"Performance\"\r\nFROM producao_periodo;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "🔵 Performance",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ecoplus-postgres-db"
+      },
+      "description": "Percentual de peças boas em relação ao total produzido",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "#EAB839",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH qualidade_calc AS (\r\n  SELECT \r\n    SUM(pecas_produzidas) AS total_produzidas,\r\n    SUM(pecas_produzidas - pecas_defeituosas) AS pecas_boas\r\n  FROM dados_maquina \r\n  WHERE $__timeFilter(datahora)\r\n  AND pecas_produzidas > 0  -- só considera quando há produção\r\n)\r\nSELECT \r\n  CASE \r\n    WHEN total_produzidas > 0 \r\n    THEN ROUND(\r\n      (pecas_boas::float / total_produzidas * 100)::numeric, \r\n      1\r\n    )\r\n    ELSE 100  -- Se não há produção, qualidade é 100%\r\n  END AS \"Qualidade\"\r\nFROM qualidade_calc;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "🟡 Qualidade",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ecoplus-postgres-db"
+      },
+      "description": "Overall Equipment Effectiveness - Métrica principal de eficiência",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "#EAB839",
+                "value": 60
+              },
+              {
+                "color": "green",
+                "value": 85
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH metricas AS (\r\n  -- Disponibilidade\r\n  SELECT \r\n    CASE \r\n      WHEN EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600 > 0 \r\n      THEN (EXTRACT(EPOCH FROM SUM(\r\n        CASE \r\n          WHEN ligada = true AND manutencao_corretiva = false AND manutencao_preventiva = false \r\n          THEN INTERVAL '5 minutes'\r\n          ELSE INTERVAL '0'\r\n        END\r\n      )) / 3600) / (EXTRACT(EPOCH FROM (MAX(datahora) - MIN(datahora))) / 3600) * 100\r\n      ELSE 0\r\n    END AS disponibilidade,\r\n    \r\n    -- Performance\r\n    CASE \r\n      WHEN COUNT(*) FILTER (WHERE operacao = true) * 5.0 / 60 > 0 \r\n      THEN ((SUM(pecas_produzidas - pecas_defeituosas) FILTER (WHERE operacao = true)) / (COUNT(*) FILTER (WHERE operacao = true) * 5.0 / 60)) / 100 * 100\r\n      ELSE 0\r\n    END AS performance,\r\n    \r\n    -- Qualidade\r\n    CASE \r\n      WHEN SUM(pecas_produzidas) > 0 \r\n      THEN (SUM(pecas_produzidas - pecas_defeituosas)::float / SUM(pecas_produzidas) * 100)\r\n      ELSE 0\r\n    END AS qualidade\r\n    \r\n  FROM dados_maquina \r\n  WHERE $__timeFilter(datahora)\r\n)\r\nSELECT \r\n  ROUND((disponibilidade * performance * qualidade / 10000)::numeric, 2) AS oee\r\nFROM metricas;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "🏆 OEE Geral",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "uid": "PostgreSQL"
+      },
+      "description": "Totalizadores de produção no período selecionado",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ícone"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \r\n  'Produção Total' as \"Métrica\",\r\n  SUM(pecas_produzidas)::text as \"Valor\",\r\n  '📦' as \"Ícone\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\n\r\nUNION ALL\r\n\r\nSELECT \r\n  'Peças Defeituosas' as \"Métrica\",\r\n  SUM(pecas_defeituosas)::text as \"Valor\", \r\n  '❌' as \"Ícone\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\n\r\nUNION ALL\r\n\r\nSELECT \r\n  'Peças Boas' as \"Métrica\",\r\n  SUM(pecas_produzidas - pecas_defeituosas)::text as \"Valor\",\r\n  '✅' as \"Ícone\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\n\r\nUNION ALL\r\n\r\nSELECT \r\n  'Taxa de Defeitos' as \"Métrica\",\r\n  CASE \r\n    WHEN SUM(pecas_produzidas) > 0 \r\n    THEN ROUND((SUM(pecas_defeituosas)::float / SUM(pecas_produzidas) * 100)::numeric, 2)::text || '%'\r\n    ELSE '0%'\r\n  END as \"Valor\",\r\n  '📊' as \"Ícone\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora);",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "📊 Totalizadores do Período",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ecoplus-postgres-db"
+      },
+      "description": "Timeline visual dos estados da máquina ao longo do tempo",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 70,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "Desligada": {
+                  "color": "red",
+                  "index": 0
+                },
+                "Em Operação": {
+                  "color": "green",
+                  "index": 3
+                },
+                "Manutenção Corretiva": {
+                  "color": "orange",
+                  "index": 1
+                },
+                "Manutenção Preventiva": {
+                  "color": "blue",
+                  "index": 2
+                },
+                "Parada Programada": {
+                  "color": "yellow",
+                  "index": 4
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 6,
+      "options": {
+        "alignValue": "left",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "mergeValues": true,
+        "rowHeight": 0.9,
+        "showValue": "always",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \r\n  datahora AS \"time\",\r\n  CASE \r\n    WHEN NOT ligada THEN 'Desligada'\r\n    WHEN manutencao_corretiva THEN 'Manutenção Corretiva'\r\n    WHEN manutencao_preventiva THEN 'Manutenção Preventiva'\r\n    WHEN operacao THEN 'Em Operação'\r\n    WHEN ligada AND NOT operacao THEN 'Parada Programada'\r\n    ELSE 'Status Indefinido'\r\n  END AS \"Status\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\nORDER BY datahora;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "🔄 Linha do Tempo - Status da Máquina",
+      "type": "state-timeline"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ecoplus-postgres-db"
+      },
+      "description": "Produção agrupada por hora com meta de referência",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Meta/Hora"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 7,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": true,
+        "groupWidth": 0.78,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \r\n  DATE_TRUNC('hour', datahora) + INTERVAL '1 hour' - INTERVAL '1 second' AS \"time\",\r\n  SUM(pecas_produzidas) AS \"Total Produzidas\",\r\n  SUM(pecas_defeituosas) AS \"Defeituosas\",\r\n  SUM(pecas_produzidas - pecas_defeituosas) AS \"Peças Boas\",\r\n  100 AS \"Meta/Hora\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\nGROUP BY DATE_TRUNC('hour', datahora)\r\nORDER BY \"time\";",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "📊 Produção por Hora",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ecoplus-postgres-db"
+      },
+      "description": "Evolução temporal dos KPIs de eficiência",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.0.2",
+      "targets": [
+        {
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT \r\n  DATE_TRUNC('hour', datahora) + INTERVAL '1 hour' - INTERVAL '1 second' AS \"time\",\r\n  \r\n  CASE \r\n    WHEN COUNT(*) > 0 \r\n    THEN ROUND(\r\n      (COUNT(*) FILTER (\r\n        WHERE ligada = true \r\n        AND manutencao_corretiva = false \r\n        AND manutencao_preventiva = false\r\n      )::float / COUNT(*) * 100)::numeric, \r\n      1\r\n    )\r\n    ELSE 0\r\n  END AS \"Disponibilidade %\",\r\n  \r\n  CASE \r\n    WHEN COUNT(*) FILTER (WHERE operacao = true) > 0 \r\n    THEN ROUND(\r\n      ((SUM(pecas_produzidas - pecas_defeituosas) FILTER (WHERE operacao = true)) \r\n       / (COUNT(*) FILTER (WHERE operacao = true) * 5.0 / 60) / 100 * 100)::numeric,\r\n      1\r\n    )\r\n    ELSE 0\r\n  END AS \"Performance %\",\r\n  \r\n  CASE \r\n    WHEN SUM(pecas_produzidas) > 0 \r\n    THEN ROUND(\r\n      (SUM(pecas_produzidas - pecas_defeituosas)::float / SUM(pecas_produzidas) * 100)::numeric,\r\n      1\r\n    )\r\n    ELSE 100\r\n  END AS \"Qualidade %\"\r\n  \r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\nGROUP BY DATE_TRUNC('hour', datahora)\r\nORDER BY \"time\";",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "📈 Eolução dos KPI's",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [
+    " oee",
+    "ex-001",
+    "producao",
+    "kpi"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h"
+    ]
+  },
+  "timezone": "America/Sao_Paulo",
+  "title": "🏭 OEE Monitor - Máquina EX-001",
+  "uid": "173943fc-4eb8-483c-9d7c-d6b108a64093",
+  "version": 37
+}

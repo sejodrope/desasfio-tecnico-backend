@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:13-alpine
+    env_file: .env
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - app-network
+
+  ingestion:
+    build: ./ingestion
+    env_file: .env
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:latest
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - app-network
+
+volumes:
+  db_data:
+  grafana_data:
+networks:
+  app-network:
