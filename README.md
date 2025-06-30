@@ -308,6 +308,22 @@ docker-compose up --build
 2. Tentar a importação via cópia do conteúdo JSON
 3. Verificar se o datasource PostgreSQL está configurado corretamente
 
+## 🔧 Correções Recentes (v2.0)
+
+**Feedback ECO+ implementado (30/06/2025):**
+
+1. ✅ **Linha do Tempo**: Inclui todos os status (manutenções, paradas, operação)
+2. ✅ **Produção vs Meta**: Meta como linha de referência ao invés de empilhamento
+3. ✅ **Visual Melhorado**: Cores intuitivas e comparação facilitada
+
+**Principais melhorias:**
+- Timeline com cores distintas para cada status da máquina
+- Gráfico de produção com meta como linha tracejada vermelha
+- Separação visual clara entre peças boas e defeituosas
+- Remoção do empilhamento confuso no gráfico de barras
+
+Veja detalhes completos em: `CORREÇÕES_DASHBOARD.md`
+
 ---
 
 **Desenvolvido por**: José Pedro  

@@ -495,15 +495,19 @@
             {
               "options": {
                 "Desligada": {
-                  "color": "red",
+                  "color": "#808080",
                   "index": 0
                 },
                 "Em Operação": {
-                  "color": "green",
-                  "index": 3
+                  "color": "#73BF69",
+                  "index": 4
+                },
+                "Indefinido": {
+                  "color": "#B877D9",
+                  "index": 5
                 },
                 "Manutenção Corretiva": {
-                  "color": "orange",
+                  "color": "#E02F44",
                   "index": 1
                 },
                 "Manutenção Preventiva": {
@@ -511,8 +515,8 @@
                   "index": 2
                 },
                 "Parada Programada": {
-                  "color": "yellow",
-                  "index": 4
+                  "color": "#FFEE52",
+                  "index": 3
                 }
               },
               "type": "value"
@@ -562,7 +566,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \r\n  datahora AS \"time\",\r\n  CASE \r\n    WHEN NOT ligada THEN 'Desligada'\r\n    WHEN manutencao_corretiva THEN 'Manutenção Corretiva'\r\n    WHEN manutencao_preventiva THEN 'Manutenção Preventiva'\r\n    WHEN operacao THEN 'Em Operação'\r\n    WHEN ligada AND NOT operacao THEN 'Parada Programada'\r\n    ELSE 'Status Indefinido'\r\n  END AS \"Status\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\nORDER BY datahora;",
+          "rawSql": "SELECT \r\n  datahora as time,\r\n  CASE \r\n    WHEN ligada = false THEN 'Desligada'\r\n    WHEN ligada = true AND manutencao_corretiva = true THEN 'Manutenção Corretiva'\r\n    WHEN ligada = true AND manutencao_preventiva = true THEN 'Manutenção Preventiva'\r\n    WHEN ligada = true AND operacao = false AND manutencao_corretiva = false AND manutencao_preventiva = false THEN 'Parada Programada'\r\n    WHEN ligada = true AND operacao = true THEN 'Em Operação'\r\n    ELSE 'Indefinido'\r\n  END as status\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\nORDER BY datahora;",
           "refId": "A",
           "sql": {
             "columns": [
@@ -591,7 +595,7 @@
         "type": "grafana-postgresql-datasource",
         "uid": "ecoplus-postgres-db"
       },
-      "description": "Produção agrupada por hora com meta de referência",
+      "description": "Produção agrupada de peças boas e defeituosas por hora ",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -603,6 +607,8 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
+            "axisSoftMax": 100,
+            "axisSoftMin": 0,
             "fillOpacity": 80,
             "gradientMode": "none",
             "hideFrom": {
@@ -610,7 +616,7 @@
               "tooltip": false,
               "viz": false
             },
-            "lineWidth": 1,
+            "lineWidth": 0,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -618,6 +624,7 @@
               "mode": "off"
             }
           },
+          "fieldMinMax": false,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -632,13 +639,28 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Meta/Hora"
+              "options": "Peças Boas"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "orange",
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Peças Defeituosas"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
                   "mode": "fixed"
                 }
               }
@@ -654,10 +676,10 @@
       },
       "id": 7,
       "options": {
-        "barRadius": 0,
+        "barRadius": 0.25,
         "barWidth": 0.97,
         "fullHighlight": true,
-        "groupWidth": 0.78,
+        "groupWidth": 0.76,
         "legend": {
           "calcs": [],
           "displayMode": "list",
@@ -666,11 +688,11 @@
         },
         "orientation": "auto",
         "showValue": "auto",
-        "stacking": "normal",
+        "stacking": "none",
         "tooltip": {
           "hideZeros": false,
           "mode": "single",
-          "sort": "none"
+          "sort": "asc"
         },
         "xTickLabelRotation": 0,
         "xTickLabelSpacing": 0
@@ -681,7 +703,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT \r\n  DATE_TRUNC('hour', datahora) + INTERVAL '1 hour' - INTERVAL '1 second' AS \"time\",\r\n  SUM(pecas_produzidas) AS \"Total Produzidas\",\r\n  SUM(pecas_defeituosas) AS \"Defeituosas\",\r\n  SUM(pecas_produzidas - pecas_defeituosas) AS \"Peças Boas\",\r\n  100 AS \"Meta/Hora\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\nGROUP BY DATE_TRUNC('hour', datahora)\r\nORDER BY \"time\";",
+          "rawSql": "SELECT \r\n  DATE_TRUNC('hour', datahora) + INTERVAL '1 hour' - INTERVAL '1 second' AS \"time\",\r\n  SUM(pecas_produzidas - pecas_defeituosas) AS \"Peças Boas\",\r\n  SUM(pecas_defeituosas) AS \"Peças Defeituosas\"\r\nFROM dados_maquina \r\nWHERE $__timeFilter(datahora)\r\nGROUP BY DATE_TRUNC('hour', datahora)\r\nORDER BY \"time\";",
           "refId": "A",
           "sql": {
             "columns": [
@@ -844,5 +866,5 @@
   "timezone": "America/Sao_Paulo",
   "title": "OEE Monitor - Máquina EX-001",
   "uid": "173943fc-4eb8-483c-9d7c-d6b108a64093",
-  "version": 41
+  "version": 79
 }
